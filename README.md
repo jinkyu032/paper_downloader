@@ -19,6 +19,7 @@
 🚀 **Batch Processing** - Queue up multiple paper titles and download them all simultaneously  
 📁 **Smart Organization** - Automatically saves papers with clean, readable filenames  
 💾 **Custom Download Folders** - Save and manage multiple download locations. You can bookmark multiple folders and easily switch between them for different projects.
+
 🔍 **Intelligent Search** - Finds the best PDF versions using Google Scholar's ranking  
 ⚡ **Live Updates** - Add new papers while downloads are running   
 
@@ -27,9 +28,21 @@
 ## � Quick Start (Ready to Use!)
 
 ### Option 1: Download the App (Recommended)
-1. **Download** the latest version from [Releases](https://github.com/jinkyu032/paper-downloader.git/releases)
+1. **Download** the latest version from [Releases](https://github.com/jinkyu032/paper-downloader/releases/tag/v0)
 2. **Unzip** and move `Paper Downloader.app` to your Applications folder
 3. **Launch** and start downloading papers immediately!
+
+**Note for macOS Users**
+When you first try to open the app, macOS may show a security warning saying the developer cannot be verified. This is standard for applications not downloaded from the App Store.
+
+
+**Command-Line Solution:**
+You can open the Terminal, navigate to the folder containing the app, and run the following command to remove the quarantine flag:
+
+```bash
+xattr -d com.apple.quarantine Paper_Downloader.app
+```
+
 
 ### Option 2: Run from Source
 ```bash
@@ -48,7 +61,7 @@ python paper_downloader.py
 
 ## 📖 How to Use (30 seconds to master!)
 
-![Paper Downloader Interface](https://via.placeholder.com/800x500/007aff/ffffff?text=Paper+Downloader+Interface)
+![Paper Downloader Interface](https://github.com/user-attachments/assets/f26a1e2f-5e6a-45f9-bb7d-5b558bd9b1ff)
 
 ### Step 1: Add Paper Titles
 ```
