@@ -9,3 +9,4 @@ __pycache__/
 
 # Settings file
 downloader_settings.json
+.paper_downloader_profile/
