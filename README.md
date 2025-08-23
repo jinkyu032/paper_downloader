@@ -64,12 +64,8 @@ python paper_downloader.py
 ![Paper Downloader Interface](https://github.com/user-attachments/assets/f26a1e2f-5e6a-45f9-bb7d-5b558bd9b1ff)
 
 ### Step 1: Add Paper Titles
-```
-Deep Learning for Computer Vision
-Attention Is All You Need
-BERT: Pre-training of Deep Bidirectional Transformers
-```
-Type or paste paper titles in the left panel (one per line). **Pro tip**: Use keyboard shortcut `Cmd+Return` (Mac) or `Ctrl+Return` (Windows/Linux) to start downloads instantly!
+
+Type or paste paper titles in the left panel (one per line). 
 
 ### Step 2: Choose Download Location
 - Select a folder from the dropdown menu
