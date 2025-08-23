@@ -53,6 +53,8 @@ def shorten_path(path, max_len=40):
 # --- Thread-Safe Queues for Communication ---
 download_queue = queue.Queue()
 update_queue = queue.Queue()
+# FIX: Create a dedicated event for signaling shutdown
+shutdown_event = threading.Event()
 
 def downloader_worker():
     """
@@ -60,82 +62,87 @@ def downloader_worker():
     It uses Selenium with a persistent profile to reduce CAPTCHAs.
     """
     driver = None
-    while True:
-        item = download_queue.get()
-        if item is None:
-            break
-
-        title_query, num_to_download, download_path = item
-        
+    while not shutdown_event.is_set():
         try:
-            update_queue.put(('update_status', title_query, 'Opening browser...'))
-            
-            options = webdriver.ChromeOptions()
-            options.add_argument(f"user-data-dir={PROFILE_PATH}")
-            
-            driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
-            
-            search_query = f'{title_query} + paper'
-            search_url = f"https://scholar.google.com/scholar?hl=en&q={quote_plus(search_query)}"
-            driver.get(search_url)
+            # Use a timeout to periodically check the shutdown event
+            item = download_queue.get(timeout=1)
+            if item is None:
+                break
 
-            WebDriverWait(driver, 300).until(
-                EC.presence_of_element_located((By.ID, "gs_res_ccl_mid"))
-            )
+            title_query, num_to_download, download_path = item
             
-            update_queue.put(('update_status', title_query, 'Searching...'))
-            html = driver.page_source
-            soup = BeautifulSoup(html, 'lxml')
+            try:
+                update_queue.put(('update_status', title_query, 'Opening browser...'))
+                
+                options = webdriver.ChromeOptions()
+                options.add_argument(f"user-data-dir={PROFILE_PATH}")
+                
+                driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
+                
+                search_query = f'{title_query} + paper'
+                search_url = f"https://scholar.google.com/scholar?hl=en&q={quote_plus(search_query)}"
+                driver.get(search_url)
+
+                WebDriverWait(driver, 300).until(
+                    EC.presence_of_element_located((By.ID, "gs_res_ccl_mid"))
+                )
+                
+                update_queue.put(('update_status', title_query, 'Searching...'))
+                html = driver.page_source
+                soup = BeautifulSoup(html, 'lxml')
+                
+                results = soup.find_all('div', class_='gs_scl')
+                
+                if not results:
+                    update_queue.put(('update_status', title_query, 'Error: Not Found'))
+                    continue
+
+                update_queue.put(('update_status', title_query, f'Found {len(results)} results'))
+                
+                downloaded_count = 0
+                for i, result in enumerate(results):
+                    if downloaded_count >= num_to_download:
+                        break
+
+                    pdf_section = result.find('div', class_='gs_ggsd')
+                    if pdf_section and pdf_section.find('a'):
+                        pdf_link = pdf_section.find('a')['href']
+                        paper_title_tag = result.find('h3', class_='gs_rt')
+                        paper_title = paper_title_tag.text if paper_title_tag else title_query
+                        
+                        sub_task_id = f"{title_query}_{i+1}"
+                        filename = f"{sanitize_filename(paper_title)}.pdf"
+                        filepath = os.path.join(download_path, filename)
+                        
+                        update_queue.put(('add_sub_task', sub_task_id, (filename, 'Downloading...')))
+                        
+                        try:
+                            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+                            pdf_response = requests.get(pdf_link, headers=headers, timeout=30, verify=False)
+                            pdf_response.raise_for_status()
+                            with open(filepath, 'wb') as f:
+                                f.write(pdf_response.content)
+                            update_queue.put(('update_status', sub_task_id, 'Complete'))
+                            downloaded_count += 1
+                        except requests.RequestException as e:
+                            print(f"Failed to download {pdf_link}: {e}")
+                            update_queue.put(('update_status', sub_task_id, 'Error: Failed'))
+
+                final_status = f'Complete ({downloaded_count}/{num_to_download})'
+                update_queue.put(('update_status', title_query, final_status))
+                update_queue.put(('add_separator', title_query, None))
+
+            except Exception as e:
+                print(f"Error processing '{title_query}': {e}")
+                update_queue.put(('update_status', title_query, 'Error: Search Failed'))
             
-            results = soup.find_all('div', class_='gs_scl')
-            
-            if not results:
-                update_queue.put(('update_status', title_query, 'Error: Not Found'))
-                continue
-
-            update_queue.put(('update_status', title_query, f'Found {len(results)} results'))
-            
-            downloaded_count = 0
-            for i, result in enumerate(results):
-                if downloaded_count >= num_to_download:
-                    break
-
-                pdf_section = result.find('div', class_='gs_ggsd')
-                if pdf_section and pdf_section.find('a'):
-                    pdf_link = pdf_section.find('a')['href']
-                    paper_title_tag = result.find('h3', class_='gs_rt')
-                    paper_title = paper_title_tag.text if paper_title_tag else title_query
-                    
-                    sub_task_id = f"{title_query}_{i+1}"
-                    filename = f"{sanitize_filename(paper_title)}.pdf"
-                    filepath = os.path.join(download_path, filename)
-                    
-                    update_queue.put(('add_sub_task', sub_task_id, (filename, 'Downloading...')))
-                    
-                    try:
-                        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-                        pdf_response = requests.get(pdf_link, headers=headers, timeout=30, verify=False)
-                        pdf_response.raise_for_status()
-                        with open(filepath, 'wb') as f:
-                            f.write(pdf_response.content)
-                        update_queue.put(('update_status', sub_task_id, 'Complete'))
-                        downloaded_count += 1
-                    except requests.RequestException as e:
-                        print(f"Failed to download {pdf_link}: {e}")
-                        update_queue.put(('update_status', sub_task_id, 'Error: Failed'))
-
-            final_status = f'Complete ({downloaded_count}/{num_to_download})'
-            update_queue.put(('update_status', title_query, final_status))
-            update_queue.put(('add_separator', title_query, None))
-
-        except Exception as e:
-            print(f"Error processing '{title_query}': {e}")
-            update_queue.put(('update_status', title_query, 'Error: Search Failed'))
-        
-        finally:
-            if driver:
-                driver.quit()
-            download_queue.task_done()
+            finally:
+                if driver:
+                    driver.quit()
+                download_queue.task_done()
+        except queue.Empty:
+            # This is expected when the queue is empty, just continue the loop
+            continue
 
 def get_application_path():
     if getattr(sys, 'frozen', False):
@@ -274,7 +281,8 @@ def create_gui(downloader_thread):
     ttk.Label(max_downloads_frame, text="Max Downloads:", style='Content.TLabel').pack(side=tk.LEFT, padx=(0, 10))
     num_downloads_var = tk.IntVar(value=1)
     ttk.Spinbox(max_downloads_frame, from_=1, to=100, textvariable=num_downloads_var, width=5).pack(side=tk.LEFT)
-    def add_papers_to_queue():
+    
+    def add_papers_to_queue(event=None):
         titles = input_text.get("1.0", tk.END).strip().split('\n')
         num_to_download = num_downloads_var.get(); download_path = get_current_full_path()
         if not download_path or not os.path.isdir(download_path):
@@ -286,7 +294,18 @@ def create_gui(downloader_thread):
                 queue_tree.insert('', 'end', iid=clean_title, values=(clean_title, '', 'Queued'), open=True)
                 download_queue.put((clean_title, num_to_download, download_path))
         input_text.delete("1.0", tk.END)
+        return "break"
+
     ttk.Button(controls_frame, text="Start", command=add_papers_to_queue).pack(side=tk.LEFT)
+    
+    shortcut = "<Command-Return>" if platform.system() == "Darwin" else "<Control-Return>"
+    input_text.bind(shortcut, add_papers_to_queue)
+    
+    # Add shortcut hint next to the Start button
+    shortcut_text = "⌘+Enter" if platform.system() == "Darwin" else "Ctrl+Enter"
+    ttk.Label(controls_frame, text=f"({shortcut_text})", style='Content.TLabel', 
+              foreground='#666666').pack(side=tk.LEFT, padx=(8, 0))
+
 
     right_frame = ttk.Frame(root, padding=(10, 0, 0, 0))
     right_frame.grid(row=0, column=1, sticky='nsew', pady=10, padx=(10,10))
@@ -345,7 +364,7 @@ def create_gui(downloader_thread):
                 pass
 
     def on_closing():
-        """Handles the window close event with proper Selenium cleanup."""
+        """Handles the window close event with immediate forced shutdown."""
         try:
             # Save settings first (quick operation)
             current_path = get_current_full_path()
@@ -357,6 +376,7 @@ def create_gui(downloader_thread):
         
         try:
             # Signal the downloader thread to stop (but don't wait)
+            shutdown_event.set()
             download_queue.put(None)
         except:
             pass
@@ -429,6 +449,7 @@ if __name__ == "__main__":
     def cleanup_on_exit():
         """Cleanup function to ensure proper shutdown."""
         try:
+            shutdown_event.set()
             download_queue.put(None)  # Signal worker to stop
         except:
             pass
@@ -448,7 +469,7 @@ if __name__ == "__main__":
     
     try:
         downloader_thread = threading.Thread(target=downloader_worker)
-        downloader_thread.daemon = True # Ensure the thread is a daemon
+        downloader_thread.daemon = True
         downloader_thread.start()
         create_gui(downloader_thread)
     except KeyboardInterrupt:
