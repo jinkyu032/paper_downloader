@@ -28,7 +28,7 @@
 ## � Quick Start (Ready to Use!)
 
 ### Option 1: Download the App (Recommended)
-1. **Download** the latest version from [Releases](https://github.com/jinkyu032/paper-downloader/releases/tag/v0)
+1. **Download** the latest version from [Releases](https://github.com/jinkyu032/paper_downloader/releases/tag/v0)
 2. **Unzip** and move `Paper Downloader.app` to your Applications folder
 3. **Launch** and start downloading papers immediately!
 
@@ -47,8 +47,8 @@ xattr -d com.apple.quarantine Paper_Downloader.app
 ### Option 2: Run from Source
 ```bash
 # Clone the repository
-git clone https://github.com/jinkyu032/paper-downloader.git
-cd paper-downloader
+git clone https://github.com/jinkyu032/paper_downloader.git
+cd paper_downloader
 
 # Install dependencies
 pip install -r requirements.txt
