@@ -1,0 +1,11 @@
+# Build artifacts
+dist/
+build/
+*.spec
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Settings file
+downloader_settings.json
