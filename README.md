@@ -18,7 +18,7 @@
 
 🚀 **Batch Processing** - Queue up multiple paper titles and download them all simultaneously  
 📁 **Smart Organization** - Automatically saves papers with clean, readable filenames  
-💾 **Custom Download Folders** - Save and manage multiple download locations
+💾 **Custom Download Folders** - Save and manage multiple download locations  
 🔍 **Intelligent Search** - Finds the best PDF versions using Google Scholar's ranking  
 ⚡ **Live Updates** - Add new papers while downloads are running   
 
